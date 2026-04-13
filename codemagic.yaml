@@ -1,0 +1,131 @@
+# ══════════════════════════════════════════════════════════════
+#  Codemagic CI/CD Configuration
+#  ضع هذا الملف في جذر مشروع Flutter
+# ══════════════════════════════════════════════════════════════
+
+workflows:
+
+  # ─── Android Release ──────────────────────────────────
+  android-release:
+    name: Android Release Build
+    max_build_duration: 60
+    environment:
+      flutter: stable
+      android_signing:
+        - your_keystore_reference  # ← أضف keystore في Codemagic Console
+      groups:
+        - firebase_credentials
+      vars:
+        PACKAGE_NAME: "com.example.chat_app"
+    cache:
+      cache_paths:
+        - ~/.pub-cache
+        - ~/.gradle/caches
+
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+
+    scripts:
+      - name: Get Flutter packages
+        script: flutter pub get
+
+      - name: Flutter analyze
+        script: flutter analyze --no-fatal-infos
+
+      - name: Build Android APK (Release)
+        script: |
+          flutter build apk \
+            --release \
+            --target-platform android-arm,android-arm64 \
+            --split-per-abi
+
+      - name: Build Android App Bundle
+        script: flutter build appbundle --release
+
+    artifacts:
+      - build/**/outputs/flutter-apk/*.apk
+      - build/**/outputs/bundle/**/*.aab
+      - build/**/outputs/**/mapping.txt
+
+    publishing:
+      email:
+        recipients:
+          - your@email.com
+        notify:
+          success: true
+          failure: true
+
+  # ─── iOS Release ──────────────────────────────────────
+  ios-release:
+    name: iOS Release Build
+    max_build_duration: 60
+    instance_type: mac_mini_m1
+    environment:
+      flutter: stable
+      ios_signing:
+        distribution_type: app_store  # or ad_hoc
+        bundle_identifier: com.example.chatApp
+      groups:
+        - firebase_credentials
+      vars:
+        BUNDLE_ID: "com.example.chatApp"
+        XCODE_WORKSPACE: "Runner.xcworkspace"
+        XCODE_SCHEME: "Runner"
+    cache:
+      cache_paths:
+        - ~/.pub-cache
+
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+
+    scripts:
+      - name: Get Flutter packages
+        script: flutter pub get
+
+      - name: Install CocoaPods
+        script: find . -name "Podfile" -execdir pod install \;
+
+      - name: Flutter analyze
+        script: flutter analyze --no-fatal-infos
+
+      - name: Build iOS IPA
+        script: |
+          flutter build ios \
+            --release \
+            --no-codesign
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+
+  # ─── Debug APK (للاختبار السريع) ──────────────────────
+  android-debug:
+    name: Android Debug Build
+    max_build_duration: 30
+    environment:
+      flutter: stable
+    cache:
+      cache_paths:
+        - ~/.pub-cache
+
+    scripts:
+      - name: Get packages
+        script: flutter pub get
+
+      - name: Build Debug APK
+        script: flutter build apk --debug
+
+    artifacts:
+      - build/**/outputs/flutter-apk/app-debug.apk
